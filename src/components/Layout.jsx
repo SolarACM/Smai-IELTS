@@ -89,9 +89,6 @@ export default function Layout({ children }) {
       <footer className="mt-20 border-t border-navy-100 bg-white">
         <div className="container-app flex flex-col items-center justify-between gap-4 py-8 sm:flex-row">
           <Logo />
-          <p className="text-sm text-navy-400">
-            Smai IELTS — เน้น Speaking & Writing · สร้างต่อยอดจากแนวคิด SiMonTOEIC
-          </p>
         </div>
       </footer>
 
