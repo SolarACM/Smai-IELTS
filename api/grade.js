@@ -12,21 +12,38 @@ function buildPrompt(body) {
   return `You are a certified IELTS speaking examiner. Assess this Part ${body.part} answer against the public band descriptors based on the transcript.\n\nQUESTION: ${body.question}\n\nCANDIDATE TRANSCRIPT:\n${body.text}\n\nReturn ONLY valid JSON, no markdown:\n${SPEAKING_SHAPE}`
 }
 
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+
 async function callGemini(prompt, key, model) {
-  const m = model || 'gemini-2.0-flash'
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${key}`
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: { temperature: 0.3, responseMimeType: 'application/json' },
-    }),
+  // Try the configured model first, then sensible fallbacks. Retry once on 429.
+  const models = model ? [model] : ['gemini-2.0-flash', 'gemini-2.5-flash', 'gemini-flash-latest', 'gemini-1.5-flash']
+  const reqBody = JSON.stringify({
+    contents: [{ parts: [{ text: prompt }] }],
+    generationConfig: { temperature: 0.3, responseMimeType: 'application/json' },
   })
-  const txt = await res.text()
-  if (!res.ok) throw new Error(`Gemini ${res.status}: ${txt.slice(0, 300)}`)
-  const data = JSON.parse(txt)
-  return data.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
+  let lastErr = 'Gemini: unknown error'
+  for (const m of models) {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${key}`
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: reqBody,
+      })
+      const txt = await res.text()
+      if (res.ok) {
+        const data = JSON.parse(txt)
+        return data.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
+      }
+      lastErr = `Gemini ${res.status} (${m}): ${txt.slice(0, 220)}`
+      if (res.status === 429 && attempt === 0) {
+        await sleep(2000) // brief backoff then retry the same model once
+        continue
+      }
+      break // non-retryable or already retried -> try next model
+    }
+  }
+  throw new Error(lastErr)
 }
 
 async function callOpenAI(prompt, key, model) {
