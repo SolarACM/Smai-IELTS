@@ -110,20 +110,22 @@ async function callDirect(promptText) {
 
 // ---- built-in tutor via serverless proxy ----
 async function callProxy(payload) {
+  let res
   try {
-    const res = await fetch('/api/grade', {
+    res = await fetch('/api/grade', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(payload),
     })
-    if (!res.ok) return null
-    const data = await res.json()
-    if (data && data.not_configured) return null
-    if (data && data.error) return null
-    return data
   } catch {
-    return null
+    return null // network unreachable -> offline fallback
   }
+  if (!res.ok) return null
+  let data
+  try { data = await res.json() } catch { return null }
+  if (data && data.not_configured) return null // owner has not set a key -> offline
+  if (data && data.error) throw new Error('AI: ' + data.error) // surface real error to user
+  return data
 }
 
 // ---- offline heuristics ----

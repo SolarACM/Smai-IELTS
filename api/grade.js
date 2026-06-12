@@ -1,62 +1,15 @@
 // Vercel serverless function — built-in AI tutor proxy.
 // The owner's API key lives in Vercel Environment Variables (never exposed to users).
-// Supports Gemini (default), OpenAI, and Anthropic.
-//
-// Env vars (set in Vercel → Settings → Environment Variables):
-//   AI_PROVIDER = gemini | openai | anthropic   (default: gemini)
-//   AI_API_KEY  = <your secret key>
-//   AI_MODEL    = optional model override
+// Env vars: AI_PROVIDER (gemini|openai|anthropic, default gemini), AI_API_KEY, AI_MODEL.
 
-const ESSAY_SHAPE = `{
-  "overall": <number 0-9, .5 steps>,
-  "criteria": [
-    {"name": "Task Achievement / Task Response", "band": <0-9>, "comment": "<1-2 sentences>"},
-    {"name": "Coherence and Cohesion", "band": <0-9>, "comment": "..."},
-    {"name": "Lexical Resource", "band": <0-9>, "comment": "..."},
-    {"name": "Grammatical Range and Accuracy", "band": <0-9>, "comment": "..."}
-  ],
-  "strengths": ["...", "..."],
-  "improvements": ["...", "..."],
-  "corrected_examples": [{"original": "...", "better": "..."}],
-  "summary": "<2-3 sentence verdict in English>"
-}`
-
-const SPEAKING_SHAPE = `{
-  "overall": <0-9, .5 steps>,
-  "criteria": [
-    {"name": "Fluency and Coherence", "band": <0-9>, "comment": "..."},
-    {"name": "Lexical Resource", "band": <0-9>, "comment": "..."},
-    {"name": "Grammatical Range and Accuracy", "band": <0-9>, "comment": "..."},
-    {"name": "Pronunciation", "band": <0-9>, "comment": "judged from transcript only"}
-  ],
-  "strengths": ["..."],
-  "improvements": ["..."],
-  "model_answer": "<a band 8+ sample answer to the same question>",
-  "summary": "<2-3 sentence verdict>"
-}`
+const ESSAY_SHAPE = `{"overall":<0-9>,"criteria":[{"name":"Task Achievement / Task Response","band":<0-9>,"comment":"..."},{"name":"Coherence and Cohesion","band":<0-9>,"comment":"..."},{"name":"Lexical Resource","band":<0-9>,"comment":"..."},{"name":"Grammatical Range and Accuracy","band":<0-9>,"comment":"..."}],"strengths":["..."],"improvements":["..."],"corrected_examples":[{"original":"...","better":"..."}],"summary":"..."}`
+const SPEAKING_SHAPE = `{"overall":<0-9>,"criteria":[{"name":"Fluency and Coherence","band":<0-9>,"comment":"..."},{"name":"Lexical Resource","band":<0-9>,"comment":"..."},{"name":"Grammatical Range and Accuracy","band":<0-9>,"comment":"..."},{"name":"Pronunciation","band":<0-9>,"comment":"from transcript only"}],"strengths":["..."],"improvements":["..."],"model_answer":"...","summary":"..."}`
 
 function buildPrompt(body) {
   if (body.kind === 'essay') {
-    return `You are a certified IELTS examiner. Assess the candidate's ${body.task} essay strictly against the public band descriptors.
-
-QUESTION:
-${body.prompt}
-
-CANDIDATE RESPONSE:
-${body.text}
-
-Return ONLY valid JSON, no markdown, in this exact shape:
-${ESSAY_SHAPE}`
+    return `You are a certified IELTS examiner. Assess the candidate's ${body.task} essay strictly against the public band descriptors.\n\nQUESTION:\n${body.prompt}\n\nCANDIDATE RESPONSE:\n${body.text}\n\nReturn ONLY valid JSON, no markdown, in this exact shape:\n${ESSAY_SHAPE}`
   }
-  return `You are a certified IELTS speaking examiner. Assess this Part ${body.part} answer against the public band descriptors based on the transcript.
-
-QUESTION: ${body.question}
-
-CANDIDATE TRANSCRIPT:
-${body.text}
-
-Return ONLY valid JSON, no markdown:
-${SPEAKING_SHAPE}`
+  return `You are a certified IELTS speaking examiner. Assess this Part ${body.part} answer against the public band descriptors based on the transcript.\n\nQUESTION: ${body.question}\n\nCANDIDATE TRANSCRIPT:\n${body.text}\n\nReturn ONLY valid JSON, no markdown:\n${SPEAKING_SHAPE}`
 }
 
 async function callGemini(prompt, key, model) {
@@ -70,8 +23,9 @@ async function callGemini(prompt, key, model) {
       generationConfig: { temperature: 0.3, responseMimeType: 'application/json' },
     }),
   })
-  if (!res.ok) throw new Error('Gemini ' + res.status + ' ' + (await res.text()).slice(0, 200))
-  const data = await res.json()
+  const txt = await res.text()
+  if (!res.ok) throw new Error(`Gemini ${res.status}: ${txt.slice(0, 300)}`)
+  const data = JSON.parse(txt)
   return data.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
 }
 
@@ -79,30 +33,22 @@ async function callOpenAI(prompt, key, model) {
   const res = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: { 'content-type': 'application/json', authorization: 'Bearer ' + key },
-    body: JSON.stringify({
-      model: model || 'gpt-4o-mini',
-      messages: [{ role: 'user', content: prompt }],
-      temperature: 0.3,
-    }),
+    body: JSON.stringify({ model: model || 'gpt-4o-mini', messages: [{ role: 'user', content: prompt }], temperature: 0.3 }),
   })
-  if (!res.ok) throw new Error('OpenAI ' + res.status)
-  const data = await res.json()
-  return data.choices?.[0]?.message?.content ?? ''
+  const txt = await res.text()
+  if (!res.ok) throw new Error(`OpenAI ${res.status}: ${txt.slice(0, 300)}`)
+  return JSON.parse(txt).choices?.[0]?.message?.content ?? ''
 }
 
 async function callAnthropic(prompt, key, model) {
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
-    body: JSON.stringify({
-      model: model || 'claude-3-5-sonnet-latest',
-      max_tokens: 1500,
-      messages: [{ role: 'user', content: prompt }],
-    }),
+    body: JSON.stringify({ model: model || 'claude-3-5-sonnet-latest', max_tokens: 1500, messages: [{ role: 'user', content: prompt }] }),
   })
-  if (!res.ok) throw new Error('Anthropic ' + res.status)
-  const data = await res.json()
-  return data.content?.[0]?.text ?? ''
+  const txt = await res.text()
+  if (!res.ok) throw new Error(`Anthropic ${res.status}: ${txt.slice(0, 300)}`)
+  return JSON.parse(txt).content?.[0]?.text ?? ''
 }
 
 function extractJson(text) {
@@ -127,7 +73,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body
+    const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body || {}
     const prompt = buildPrompt(body)
     let raw
     if (provider === 'openai') raw = await callOpenAI(prompt, key, model)
@@ -136,11 +82,13 @@ export default async function handler(req, res) {
 
     const parsed = extractJson(raw)
     if (!parsed) {
-      res.status(502).json({ error: 'bad_ai_response' })
+      res.status(200).json({ error: 'AI ตอบกลับมาในรูปแบบที่อ่านไม่ได้ ลองใหม่อีกครั้ง' })
       return
     }
     res.status(200).json(parsed)
   } catch (e) {
-    res.status(500).json({ error: String(e.message || e) })
+    const msg = String(e && e.message ? e.message : e)
+    console.error('[grade] provider=' + provider + ' error=' + msg)
+    res.status(200).json({ error: msg })
   }
 }

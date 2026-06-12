@@ -3,6 +3,7 @@ import { speakingSets } from '../data/speaking.js'
 import { speakingBands } from '../data/bands.js'
 import { useTimer, fmt } from '../hooks/useTimer.js'
 import { useRecorder } from '../hooks/useRecorder.js'
+import { useRecognition } from '../hooks/useRecognition.js'
 import { gradeSpeaking, aiEnabled } from '../lib/ai.js'
 import { logAttempt } from '../lib/store.js'
 import BandPanel from '../components/BandPanel.jsx'
@@ -298,24 +299,50 @@ function Recorder({ rec }) {
 }
 
 function TranscriptBox({ value, onChange, onGrade, loading }) {
+  const rec = useRecognition()
+  const toggle = () => {
+    if (rec.listening) rec.stop()
+    else rec.start('en-US', (text) => onChange(text))
+  }
   return (
     <div className="card mt-4 p-4">
-      <label className="text-xs font-semibold uppercase tracking-wide text-navy-500">
-        Transcript — พิมพ์/วางสิ่งที่คุณพูด เพื่อให้ AI ให้ band
-      </label>
+      <div className="flex items-center justify-between gap-2">
+        <label className="text-xs font-semibold uppercase tracking-wide text-navy-500">
+          คำตอบของคุณ — ให้ AI ให้ band
+        </label>
+        {rec.supported && (
+          <button
+            onClick={toggle}
+            className={
+              'inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold ring-1 transition ' +
+              (rec.listening ? 'bg-rose-500 text-white ring-rose-500' : 'bg-white text-navy-600 ring-navy-100 hover:bg-navy-50')
+            }
+          >
+            {rec.listening ? (
+              <><span className="inline-block h-2 w-2 animate-pulse rounded-full bg-white" /> กำลังฟัง... กดเพื่อหยุด</>
+            ) : (
+              '🎤 พูดให้ถอดความอัตโนมัติ'
+            )}
+          </button>
+        )}
+      </div>
       <textarea
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        placeholder="พิมพ์สิ่งที่คุณพูด หรือฟังเสียงแล้วถอดความที่นี่..."
+        placeholder={
+          rec.supported
+            ? 'กด “พูดให้ถอดความอัตโนมัติ” แล้วพูดเป็นภาษาอังกฤษได้เลย ระบบจะพิมพ์ให้ — หรือจะพิมพ์เองก็ได้'
+            : 'พิมพ์สิ่งที่คุณพูดที่นี่ (เบราว์เซอร์นี้ไม่รองรับถอดเสียงอัตโนมัติ ลองใช้ Chrome บนคอม)'
+        }
         className="mt-2 h-28 w-full resize-y rounded-lg border border-navy-100 bg-white p-3 text-sm outline-none focus:border-ember-400"
       />
-      <div className="mt-2 flex justify-end">
+      <div className="mt-2 flex items-center justify-end">
         <button
           onClick={onGrade}
           disabled={loading || value.trim().length < 10}
           className="btn-primary px-5 py-1.5 text-xs disabled:opacity-40"
         >
-          {loading ? 'กำลังตรวจ...' : aiEnabled() ? 'ให้ AI ให้ band' : 'ประเมิน (ออฟไลน์)'}
+          {loading ? 'กำลังตรวจ...' : 'ให้ AI ให้ band'}
         </button>
       </div>
     </div>
