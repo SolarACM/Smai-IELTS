@@ -28,19 +28,52 @@ function audioParts(body) {
   ]
 }
 
+// Discover which Gemini models actually exist for this key (model names change
+// over time; old ones get retired). Cached per warm lambda.
+let cachedModels = null
+async function listGeminiModels(key) {
+  if (cachedModels) return cachedModels
+  try {
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${key}`)
+    if (!res.ok) return null
+    const data = await res.json()
+    const names = (data.models || [])
+      .filter((m) => (m.supportedGenerationMethods || []).includes('generateContent'))
+      .map((m) => String(m.name).replace(/^models\//, ''))
+    cachedModels = names
+    return names
+  } catch {
+    return null
+  }
+}
+
+function versionScore(n) { const m = n.match(/(\d+\.\d+)/); return m ? parseFloat(m[1]) : 0 }
+
+function rankFlashModels(names) {
+  const flash = names.filter((n) => /flash/i.test(n) && !/vision|embedding|image|tts|audio-|thinking|exp|preview/i.test(n))
+  flash.sort((a, b) => versionScore(b) - versionScore(a))
+  return flash.length ? flash : names
+}
+
 async function callGemini(parts, key, model) {
-  const models = model ? [model] : ['gemini-2.0-flash', 'gemini-2.5-flash', 'gemini-flash-latest', 'gemini-1.5-flash']
+  let candidates
+  if (model) {
+    candidates = [model]
+  } else {
+    const names = await listGeminiModels(key)
+    candidates = names ? rankFlashModels(names).slice(0, 4) : ['gemini-2.0-flash', 'gemini-flash-latest']
+  }
   const reqBody = JSON.stringify({ contents: [{ parts }], generationConfig: { temperature: 0.3, responseMimeType: 'application/json' } })
-  let lastErr = 'Gemini: unknown error'
-  for (const m of models) {
+  let lastErr = 'Gemini: no usable model found'
+  for (const m of candidates) {
     for (let attempt = 0; attempt < 2; attempt++) {
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${key}`
       const res = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: reqBody })
       const txt = await res.text()
       if (res.ok) return JSON.parse(txt).candidates?.[0]?.content?.parts?.[0]?.text ?? ''
-      lastErr = `Gemini ${res.status} (${m}): ${txt.slice(0, 220)}`
+      lastErr = `Gemini ${res.status} (${m}): ${txt.slice(0, 200)}`
       if (res.status === 429 && attempt === 0) { await sleep(2000); continue }
-      break
+      break // 404/400 etc -> try next discovered model
     }
   }
   throw new Error(lastErr)
