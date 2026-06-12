@@ -20,7 +20,7 @@ export function save(key, value) {
 
 export function getSettings() {
   return load('settings', {
-    provider: 'openai', // 'openai' | 'anthropic'
+    provider: 'gemini', // 'gemini' | 'openai' | 'anthropic'
     apiKey: '',
     model: '',
     targetBand: 7,
@@ -31,7 +31,7 @@ export function saveSettings(s) {
   save('settings', s)
 }
 
-// Simple attempt logging so progress page / streaks can grow later.
+// Simple attempt logging so a progress page / streaks can grow later.
 export function logAttempt(entry) {
   const list = load('attempts', [])
   list.unshift({ ...entry, at: Date.now() })

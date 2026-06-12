@@ -19,19 +19,19 @@ const skills = [
   },
   {
     to: '/reading',
-    tag: 'เร็ว ๆ นี้',
+    tag: 'พร้อมใช้',
     title: 'Reading',
-    desc: 'ฝึกเองได้เต็มที่ — passages พร้อมจับเวลาและเฉลยละเอียด',
-    pain: 'ฝึกคนเดียวได้',
-    active: false,
+    desc: 'Passage แนวข้อสอบ พร้อมจับเวลา คำถาม True/False/Not Given, multiple choice และเติมคำ เฉลยพร้อมเหตุผลทุกข้อ',
+    pain: 'ฝึกเองได้',
+    active: true,
   },
   {
     to: '/listening',
-    tag: 'เร็ว ๆ นี้',
+    tag: 'พร้อมใช้',
     title: 'Listening',
-    desc: 'ฝึกเองได้เต็มที่ — 4 sections หลายสำเนียง พร้อม transcript',
-    pain: 'ฝึกคนเดียวได้',
-    active: false,
+    desc: 'เสียงเจ้าของภาษา เลือกสำเนียง US/UK ปรับความเร็วได้ ฟังแล้วตอบคำถาม พร้อมสคริปต์และเฉลย',
+    pain: 'ฝึกเองได้',
+    active: true,
   },
 ]
 
@@ -44,7 +44,7 @@ export default function Home() {
         <div className="container-app relative grid gap-10 py-20 md:grid-cols-[1.1fr_0.9fr] md:py-28">
           <div>
             <span className="chip bg-white/10 text-parchment ring-1 ring-white/15">
-              IELTS Academic & General · เน้น Speaking + Writing
+              IELTS Academic & General · ครบ 4 ทักษะ
             </span>
             <h1 className="mt-5 font-display text-4xl leading-[1.1] sm:text-5xl md:text-6xl">
               ไต่สู่ Band
@@ -54,7 +54,7 @@ export default function Home() {
             <p className="mt-5 max-w-xl text-lg leading-relaxed text-navy-100">
               สองทักษะที่ฝึกคนเดียวยากที่สุดในข้อสอบ IELTS คือ <strong className="text-white">การพูด</strong> และ
               <strong className="text-white"> การเขียน</strong> — Smai IELTS จำลองห้องสอบ จับเวลาเหมือนจริง
-              และมีผู้ช่วย AI ทำหน้าที่กรรมการคุมสอบและตรวจให้คะแนนแทนติวเตอร์
+              และมีติวเตอร์ AI ในตัวคอยถาม-ตอบและตรวจให้คะแนน ครบทั้ง Reading และ Listening ด้วย
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Link to="/speaking" className="btn-primary">เริ่มซ้อม Speaking →</Link>
@@ -67,7 +67,7 @@ export default function Home() {
               icon="🎙"
               title="Speaking"
               before="ต้องจ้างติวเตอร์มาถามคำถาม ทำ mock test"
-              after="AI ถามทีละพาร์ต จับเวลา และให้ band 4 เกณฑ์"
+              after="ติวเตอร์ AI ถามทีละพาร์ต จับเวลา และให้ band 4 เกณฑ์"
             />
             <PainCard
               icon="✍️"
@@ -85,18 +85,10 @@ export default function Home() {
           <Link
             key={s.to}
             to={s.to}
-            className={
-              'card group relative p-6 transition hover:shadow-lift ' +
-              (s.active ? '' : 'opacity-80')
-            }
+            className="card group relative p-6 transition hover:shadow-lift"
           >
             <div className="flex items-center justify-between">
-              <span
-                className={
-                  'chip ' +
-                  (s.active ? 'bg-ember-50 text-ember-700' : 'bg-navy-50 text-navy-500')
-                }
-              >
+              <span className={'chip ' + (s.tag === 'จุดเด่น' ? 'bg-ember-50 text-ember-700' : 'bg-navy-50 text-navy-500')}>
                 {s.tag}
               </span>
               <span className="font-display text-sm text-navy-400">{s.pain}</span>
@@ -104,7 +96,7 @@ export default function Home() {
             <h3 className="mt-4 text-2xl">{s.title}</h3>
             <p className="mt-2 text-sm leading-relaxed text-navy-500">{s.desc}</p>
             <span className="mt-4 inline-block text-sm font-semibold text-ember-600 group-hover:translate-x-1">
-              {s.active ? 'เข้าฝึก →' : 'ดูตัวอย่าง →'}
+              เข้าฝึก →
             </span>
           </Link>
         ))}
@@ -116,8 +108,8 @@ export default function Home() {
         <div className="mt-10 grid gap-6 md:grid-cols-3">
           {[
             ['1', 'เลือกโจทย์จริง', 'โจทย์แนวข้อสอบ IELTS พร้อมตัวจับเวลาตามเวลาสอบจริง'],
-            ['2', 'ทำเหมือนสอบ', 'พูดอัดเสียง หรือพิมพ์ essay ภายใต้เวลาที่กำหนด ไม่มีตัวช่วย'],
-            ['3', 'รับผลทันที', 'AI ให้ band รายเกณฑ์ + จุดที่ต้องแก้ หรือเทียบกับ model answer เอง'],
+            ['2', 'ทำเหมือนสอบ', 'พูดอัดเสียง พิมพ์ essay หรือฟังเสียง native ภายใต้เวลาที่กำหนด'],
+            ['3', 'รับผลทันที', 'ติวเตอร์ AI ให้ band รายเกณฑ์ หรือเฉลยพร้อมเหตุผลทุกข้อ'],
           ].map(([n, t, d]) => (
             <div key={n} className="card p-6">
               <span className="grid h-10 w-10 place-items-center rounded-full bg-ink font-display text-lg font-bold text-ember-400">
@@ -134,13 +126,13 @@ export default function Home() {
       <section className="container-app mt-20">
         <div className="card flex flex-col items-start gap-4 bg-navy-50/50 p-8 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h3 className="text-xl">เปิดพลัง AI ได้ที่ปุ่ม “ตั้งค่า AI”</h3>
+            <h3 className="text-xl">ติวเตอร์ AI พร้อมใช้ในตัว</h3>
             <p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-navy-500">
-              ใส่ API key ของ OpenAI หรือ Anthropic เพื่อให้ AI ตรวจและให้คะแนน band อัตโนมัติ
-              ถ้ายังไม่เชื่อม ก็ใช้โหมดออฟไลน์ได้ทันที (timer, นับคำ, band descriptor, model answer)
+              ไม่ต้องตั้งค่าอะไร แค่กด “ให้ AI ตรวจ” ระบบจะให้คะแนน band รายเกณฑ์พร้อม feedback
+              (ถ้าใครอยากใช้ API key ของตัวเองก็ทำได้ที่ปุ่มตั้งค่า)
             </p>
           </div>
-          <span className="chip shrink-0 bg-ember-50 text-ember-700">ไม่มี AI ก็ใช้ได้</span>
+          <span className="chip shrink-0 bg-ember-50 text-ember-700">ครบ 4 ทักษะ</span>
         </div>
       </section>
     </div>
