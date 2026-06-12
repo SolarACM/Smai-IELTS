@@ -36,8 +36,9 @@ export default {
         parchment: '#fbfaf7',
       },
       fontFamily: {
-        display: ['"Fraunces"', 'Georgia', 'serif'],
-        sans: ['"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
+        // Latin uses the first family; Thai glyphs fall through to the Thai family per-character
+        display: ['"Fraunces"', '"Noto Serif Thai"', 'Georgia', 'serif'],
+        sans: ['"Plus Jakarta Sans"', '"Anuphan"', 'system-ui', 'sans-serif'],
       },
       boxShadow: {
         card: '0 1px 2px rgba(13,27,42,0.04), 0 8px 24px rgba(13,27,42,0.06)',
