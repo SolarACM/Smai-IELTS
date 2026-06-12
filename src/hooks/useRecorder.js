@@ -1,9 +1,11 @@
 import { useRef, useState, useCallback } from 'react'
 
-// Microphone recorder using MediaRecorder. Returns a blob URL for playback.
+// Microphone recorder using MediaRecorder. Exposes a blob URL for playback
+// and the raw Blob (so we can send the audio to the AI for pronunciation check).
 export function useRecorder() {
   const [recording, setRecording] = useState(false)
   const [audioUrl, setAudioUrl] = useState(null)
+  const [blob, setBlob] = useState(null)
   const [error, setError] = useState(null)
   const mediaRef = useRef(null)
   const chunksRef = useRef([])
@@ -16,8 +18,9 @@ export function useRecorder() {
       chunksRef.current = []
       mr.ondataavailable = (e) => e.data.size && chunksRef.current.push(e.data)
       mr.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: 'audio/webm' })
-        setAudioUrl(URL.createObjectURL(blob))
+        const b = new Blob(chunksRef.current, { type: 'audio/webm' })
+        setBlob(b)
+        setAudioUrl(URL.createObjectURL(b))
         stream.getTracks().forEach((t) => t.stop())
       }
       mr.start()
@@ -35,8 +38,9 @@ export function useRecorder() {
 
   const clear = useCallback(() => {
     setAudioUrl(null)
+    setBlob(null)
     chunksRef.current = []
   }, [])
 
-  return { recording, audioUrl, error, start, stop, clear, supported: typeof MediaRecorder !== 'undefined' }
+  return { recording, audioUrl, blob, error, start, stop, clear, supported: typeof MediaRecorder !== 'undefined' }
 }

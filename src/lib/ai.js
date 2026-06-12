@@ -189,4 +189,65 @@ export async function gradeSpeaking({ part, question, transcript }) {
   return offlineSpeaking({ transcript })
 }
 
+// ---- audio pronunciation (Gemini multimodal) ----
+async function geminiDirectParts(parts, key, model) {
+  const m = model || 'gemini-2.0-flash'
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${key}`,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ contents: [{ parts }], generationConfig: { temperature: 0.3, responseMimeType: 'application/json' } }),
+    },
+  )
+  const txt = await res.text()
+  if (!res.ok) throw new Error('AI: Gemini ' + res.status + ': ' + txt.slice(0, 200))
+  return JSON.parse(txt).candidates?.[0]?.content?.parts?.[0]?.text ?? ''
+}
+
+export async function gradeSpeakingAudio({ part, question, audioBase64, mimeType }) {
+  const s = getSettings()
+  // user's own Gemini key -> call directly
+  if (s.apiKey && s.provider === 'gemini') {
+    const prompt = `You are a certified IELTS speaking examiner. Listen to the candidate's spoken answer in the audio and assess it against the public band descriptors. Judge PRONUNCIATION from the actual audio: individual sounds, word stress, intonation and intelligibility. List specific mispronounced words with a tip each. Also transcribe what they said.\n\nQUESTION: Part ${part} — ${question}\n\nReturn ONLY valid JSON: {"transcript":"...","overall":<0-9>,"criteria":[{"name":"Fluency and Coherence","band":<0-9>,"comment":"..."},{"name":"Lexical Resource","band":<0-9>,"comment":"..."},{"name":"Grammatical Range and Accuracy","band":<0-9>,"comment":"..."},{"name":"Pronunciation","band":<0-9>,"comment":"from the audio"}],"mispronounced":[{"word":"...","issue":"...","tip":"..."}],"strengths":["..."],"improvements":["..."],"model_answer":"...","summary":"..."}`
+    const raw = await geminiDirectParts(
+      [{ inline_data: { mime_type: mimeType || 'audio/wav', data: audioBase64 } }, { text: prompt }],
+      s.apiKey,
+      s.model,
+    )
+    const parsed = extractJson(raw)
+    if (parsed) { parsed.offline = false; return parsed }
+  }
+  // built-in tutor proxy
+  const proxied = await callProxy({ kind: 'speaking_audio', part, question, audio: audioBase64, mimeType })
+  if (proxied) { proxied.offline = false; return proxied }
+  return {
+    offline: true,
+    summary: 'การตรวจการออกเสียงต้องใช้ AI (เจ้าของเว็บยังไม่ได้ตั้งค่า key หลังบ้าน หรือโควต้าหมด) — ใช้โหมดถอดข้อความให้ band แทนได้ก่อน',
+    criteria: [],
+  }
+}
+
+// ---- translate feedback EN -> Thai ----
+export async function translateResult(result) {
+  const payload = {
+    criteria: (result.criteria || []).map((c) => ({ name: c.name, comment: c.comment })),
+    strengths: result.strengths || [],
+    improvements: result.improvements || [],
+    summary: result.summary || '',
+    mispronounced: (result.mispronounced || []).map((m) => ({ word: m.word, issue: m.issue, tip: m.tip })),
+  }
+  const s = getSettings()
+  if (s.apiKey) {
+    const prompt = `Translate the human-readable text values of this IELTS feedback JSON into natural friendly Thai. Keep the same JSON structure and keys; translate only comment/strengths/improvements/summary/issue/tip values. Do NOT translate the "name" or "word" values. Return ONLY valid JSON.\n\n${JSON.stringify(payload)}`
+    try {
+      const raw = await callDirect(prompt)
+      const parsed = extractJson(raw)
+      if (parsed) return parsed
+    } catch { /* fall through to proxy */ }
+  }
+  const proxied = await callProxy({ kind: 'translate', payload })
+  return proxied || null
+}
+
 export { ESSAY_CRITERIA, SPEAKING_CRITERIA }

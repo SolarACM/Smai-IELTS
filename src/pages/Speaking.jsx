@@ -4,7 +4,8 @@ import { speakingBands } from '../data/bands.js'
 import { useTimer, fmt } from '../hooks/useTimer.js'
 import { useRecorder } from '../hooks/useRecorder.js'
 import { useRecognition } from '../hooks/useRecognition.js'
-import { gradeSpeaking, aiEnabled } from '../lib/ai.js'
+import { gradeSpeaking, gradeSpeakingAudio } from '../lib/ai.js'
+import { blobToWavBase64 } from '../lib/audio.js'
 import { logAttempt } from '../lib/store.js'
 import BandPanel from '../components/BandPanel.jsx'
 import BandDescriptors from '../components/BandDescriptors.jsx'
@@ -74,9 +75,9 @@ export default function Speaking() {
           <div className="card mt-6 p-5 text-sm leading-relaxed text-navy-500">
             <h4 className="font-semibold text-navy-700">เคล็ดลับใช้ห้องนี้</h4>
             <ul className="mt-2 space-y-1.5">
-              <li>• กดอัดเสียงแล้วพูดจริง อย่าอ่านสคริปต์</li>
-              <li>• ฟังเสียงตัวเองซ้ำ จับ filler และการหยุด</li>
-              <li>• พิมพ์/วาง transcript สิ่งที่พูด แล้วให้ AI ให้ band</li>
+              <li>• อัดเสียงแล้วกด “ให้ AI ฟังเสียง” เพื่อตรวจการออกเสียงจริงเป็นคำ ๆ</li>
+              <li>• หรือกดไมค์ถอดความอัตโนมัติ แล้วให้ AI ให้ band จากข้อความ</li>
+              <li>• กดปุ่ม “ไทย” ในผลประเมิน เพื่ออ่าน feedback เป็นภาษาไทย</li>
             </ul>
           </div>
         </div>
@@ -118,6 +119,21 @@ function InterviewPart({ data, partNo }) {
     }
   }
 
+  const gradeAudio = async () => {
+    if (!rec.blob) return
+    setLoading(true); setError(null); setResult(null)
+    try {
+      const audioBase64 = await blobToWavBase64(rec.blob)
+      const r = await gradeSpeakingAudio({ part: partNo, question: q, audioBase64, mimeType: 'audio/wav' })
+      setResult(r)
+      logAttempt({ skill: 'speaking', part: partNo, band: r.overall ?? null })
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return (
     <div>
       <div className="card p-5">
@@ -139,6 +155,11 @@ function InterviewPart({ data, partNo }) {
       </div>
 
       <Recorder rec={rec} />
+      {rec.audioUrl && (
+        <button onClick={gradeAudio} disabled={loading} className="btn-dark mt-3 w-full py-2.5 text-sm disabled:opacity-40">
+          {loading ? '🎧 AI กำลังฟังเสียง...' : '🎧 ให้ AI ฟังเสียง & ตรวจการออกเสียง (แนะนำ)'}
+        </button>
+      )}
       <TranscriptBox value={transcript} onChange={setTranscript} onGrade={grade} loading={loading} />
       {error && <p className="mt-3 rounded-lg bg-rose-50 p-3 text-sm text-rose-600">{error}</p>}
       {result && <BandPanel result={result} />}
@@ -194,6 +215,21 @@ function CueCardPart({ data, model }) {
     setResult(null)
     try {
       const r = await gradeSpeaking({ part: 2, question: data.cue, transcript })
+      setResult(r)
+      logAttempt({ skill: 'speaking', part: 2, band: r.overall ?? null })
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const gradeAudio = async () => {
+    if (!rec.blob) return
+    setLoading(true); setError(null); setResult(null)
+    try {
+      const audioBase64 = await blobToWavBase64(rec.blob)
+      const r = await gradeSpeakingAudio({ part: 2, question: data.cue, audioBase64, mimeType: 'audio/wav' })
       setResult(r)
       logAttempt({ skill: 'speaking', part: 2, band: r.overall ?? null })
     } catch (e) {
@@ -260,6 +296,11 @@ function CueCardPart({ data, model }) {
           {rec.error && <p className="mt-3 text-sm text-rose-600">{rec.error}</p>}
           {rec.audioUrl && (
             <audio controls src={rec.audioUrl} className="mt-4 w-full" />
+          )}
+          {rec.audioUrl && (
+            <button onClick={gradeAudio} disabled={loading} className="btn-dark mt-3 w-full py-2.5 text-sm disabled:opacity-40">
+              {loading ? '🎧 AI กำลังฟังเสียง...' : '🎧 ให้ AI ฟังเสียง & ตรวจการออกเสียง (แนะนำ)'}
+            </button>
           )}
         </div>
       </div>
